@@ -1,6 +1,9 @@
 package com.java.sunnyweather;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
@@ -11,6 +14,7 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -44,6 +48,10 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView tv_car_wash;
     private TextView tv_sport;
     private ImageView iv_bing_pic;
+    public SwipeRefreshLayout srl_refresh;
+    private String mWeatherId;
+    public DrawerLayout dl_change_city;
+    private Button btn_change_city;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,18 +77,39 @@ public class WeatherActivity extends AppCompatActivity {
         tv_sport = findViewById(R.id.tv_sport);
         iv_bing_pic = findViewById(R.id.iv_bing_pic);
 
+        srl_refresh = findViewById(R.id.srl_refresh);
+        srl_refresh.setColorSchemeResources(R.color.colorPrimary);
+
+        dl_change_city = findViewById(R.id.dl_change_city);
+        btn_change_city = findViewById(R.id.btn_change_city);
+
+        btn_change_city.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dl_change_city.openDrawer(GravityCompat.START);
+            }
+        });
+
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
         if(weatherString != null){
             //有缓存时直接解析
             Weather weather= Utility.handleWeatherResponse(weatherString);
+            mWeatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
         }else{
             //无缓存时去服务器查询天气
-            String weatherId=getIntent().getStringExtra("weather_id");
+            mWeatherId=getIntent().getStringExtra("weather_id");
             sv_weather.setVisibility(View.INVISIBLE);
-            requestWeather(weatherId);
+            requestWeather(mWeatherId);
         }
+
+        srl_refresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(mWeatherId);
+            }
+        });
 
         String bingPic = prefs.getString("bing_pic",null);
         if(bingPic != null){
@@ -93,7 +122,7 @@ public class WeatherActivity extends AppCompatActivity {
     /*
     *
     * 根据天气id请求城市天气信息*/
-    private void requestWeather(final String weatherId) {
+    public void requestWeather(final String weatherId) {
 
         String weatherUrl="http://guolin.tech/api/weather?cityid="+weatherId;
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
@@ -104,8 +133,10 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this, "服务器获取天气信息失败", Toast.LENGTH_SHORT).show();
+                        srl_refresh.setRefreshing(false);
                     }
                 });
+
             }
 
             @Override
@@ -121,11 +152,13 @@ public class WeatherActivity extends AppCompatActivity {
                                     .edit();
                             editor.putString("weather",responseText);
                             editor.apply();
+                            mWeatherId=weather.basic.weatherId;
                             showWeatherInfo(weather);
                         }else{
                             Log.d("weather",String.valueOf(weather));
                             Toast.makeText(WeatherActivity.this, "获取天气失败", Toast.LENGTH_SHORT).show();
                         }
+                        srl_refresh.setRefreshing(false);
                     }
                 });
             }
